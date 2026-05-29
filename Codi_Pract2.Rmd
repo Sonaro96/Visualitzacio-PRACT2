@@ -1,0 +1,105 @@
+---
+title: "Visualitzacio P2"
+output: pdf_document
+date: "2026-05-28"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(usethis)
+```
+
+```{r Carrega i integracio}
+df_1 <- read_csv("trending_videos.csv")
+df_1$trending_country <- as.factor(df_1$trending_country)
+country_list <- levels(df_1$trending_country)
+print("Paisos inclosos al dataset1:")
+print(country_list)
+
+df_2 <- read_csv("internet_use.csv")
+df_2$Country_Code <- as.factor(df_2$Country_Code)
+country_list2 <- levels(df_2$Country_Code)
+print("Paisos inclosos al dataset2")
+print(country_list2)
+
+# Manipulem columna de WorldData per que ref. a paisos sigui consistent
+df_2 <- df_2 %>%
+  mutate(Country_Code = fct_recode(Country_Code,
+    "AR" = "ARG", # Argentina
+    "AU" = "AUS", # Australia
+    "BR" = "BRA", # Brazil
+    "CA" = "CAN", # Canada
+    "CO" = "COL", # Colombia
+    "DE" = "DEU", # Germany
+    "EG" = "EGY", # Egypt
+    "FR" = "FRA", # France
+    "GB" = "GBR", # United Kingdom
+    "ID" = "IDN", # Indonesia
+    "IN" = "IND", # India
+    "JP" = "JPN", # Japan
+    "KR" = "KOR", # South Korea
+    "MX" = "MEX", # Mexico
+    "NG" = "NGA", # Nigeria
+    "PH" = "PHL", # Philippines
+    "PK" = "PAK", # Pakistan
+    "RU" = "RUS", # Russian Federation
+    "SA" = "SAU", # Saudi Arabia
+    "TH" = "THA", # Thailand
+    "TR" = "TUR", # Turkiye
+    "US" = "USA", # United States
+    "VN" = "VNM"  # Viet Nam
+  ))
+
+df_2 <- df_2 %>%
+  select(Country_Code, `2020`, `2021`, `2022`, `2023`, `2024`) %>%
+  rename(
+    Inter_2020 = `2020`,
+    Inter_2021 = `2021`,
+    Inter_2022 = `2022`,
+    Inter_2023 = `2023`,
+    Inter_2024 = `2024`
+  )
+```
+
+
+```{r groupby country, year, amb info categories}
+table_A_category <- df_1 %>%
+  group_by(trending_country, year, category) %>%
+  summarize(
+    category_views = sum(views, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  group_by(trending_country, year) %>%
+  mutate(
+    pct_category = (category_views / sum(category_views, na.rm = TRUE)) * 100
+  ) %>%
+  ungroup() %>%
+  select(trending_country, year, category, category_views, pct_category)
+
+# Fem pivoting de taula %Internet per que tingui anys com a rows per fer join
+df_internet_long <- df_2 %>%
+  pivot_longer(
+    cols = starts_with("Inter_"),
+    names_to = "year",
+    values_to = "inter_access"
+  ) %>%
+  mutate(year = as.numeric(str_remove(year, "Inter_")))
+```
+
+
+```{r groupby year i country}
+table_B_national <- df_1 %>%
+  group_by(trending_country, year) %>%
+  summarize(
+    total_views = sum(views, na.rm = TRUE),
+    Avg_ClickbaitSc = sum(clickbait_score * views, na.rm = TRUE) / total_views,
+    .groups = "drop"
+  ) %>%
+  left_join(df_internet_long, by = c("trending_country" = "Country_Code", "year" = "year"))
+```
+
+```{r desar}
+write_csv(table_A_category, "dades_netes_cat.csv")
+write_csv(table_B_national, "dades_netes_main.csv")
+```
